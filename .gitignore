@@ -1,0 +1,17 @@
+node_modules/
+build/
+dist/
+*.log
+.DS_Store
+.env
+.env.local
+.env.*.local
+pnpm-lock.yaml
+.turbo
+.vscode
+.idea
+*.swp
+*.swo
+*~
+.cache
+.pnpm-store

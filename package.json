@@ -1,0 +1,50 @@
+{
+  "name": "kasa-mcp",
+  "version": "0.1.0",
+  "description": "MCP (Model Context Protocol) server for Kasa smart home devices",
+  "type": "module",
+  "bin": {
+    "kasa-mcp": "./build/index.js"
+  },
+  "main": "./build/index.js",
+  "files": [
+    "build"
+  ],
+  "scripts": {
+    "build": "tsc && chmod 755 build/index.js",
+    "dev": "tsc --watch",
+    "prepare": "pnpm run build",
+    "test": "node build/index.js",
+    "inspector": "npx @modelcontextprotocol/inspector node build/index.js",
+    "start:stdio": "node build/index.js",
+    "start:http": "MCP_TRANSPORT=http node build/index.js",
+    "start:http:stateless": "MCP_TRANSPORT=http MCP_SESSION_MODE=stateless node build/index.js",
+    "dev:http": "tsc && MCP_TRANSPORT=http node build/index.js",
+    "inspector:http": "npx @modelcontextprotocol/inspector http://localhost:3000/mcp",
+    "prepublishOnly": "pnpm run build"
+  },
+  "keywords": [
+    "mcp",
+    "model-context-protocol",
+    "kasa",
+    "smart-home",
+    "ai"
+  ],
+  "author": "Your Name",
+  "license": "MIT",
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.0.0",
+    "zod": "^3.25.0"
+  },
+  "devDependencies": {
+    "@types/express": "^4.17.21",
+    "@types/node": "^20.0.0",
+    "typescript": "^5.9.0"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "publishConfig": {
+    "access": "public"
+  }
+}

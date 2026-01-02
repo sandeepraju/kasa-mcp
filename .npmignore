@@ -1,0 +1,16 @@
+src/
+tsconfig.json
+.gitignore
+*.log
+.DS_Store
+tests/
+.github/
+.turbo
+.vscode
+.idea
+*.swp
+*.swo
+*~
+.cache
+pnpm-lock.yaml
+node_modules/
