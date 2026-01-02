@@ -1,5 +1,9 @@
 # kasa-mcp
 
+> ⚠️ **Heads up:** This project has no affiliation with TP-Link or Kasa. It's a completely unofficial community project. If something goes wrong and your devices act weird, get bricked, or explode into flames - we're not responsible. Use at your own risk and make sure you understand what you're doing before running this with your actual devices.
+
+> 🤖 **Fair warning:** This whole thing was written by AI (Claude). The code might have weird quirks, might look ugly, might do things in a way that makes experienced developers cringe. It's genuinely untested AI-generated code, so please review it, understand what it does, and use it with caution. You've been warned!
+
 An MCP (Model Context Protocol) server for Kasa smart home devices. Install it as an npx package to integrate Kasa device control with Claude and other MCP-compatible applications.
 
 ## Installation and Claude Desktop Configuration
@@ -101,28 +105,188 @@ Then rebuild with `pnpm build` after making changes and restart Claude.
 
 ## Available Tools
 
-### get_devices
+### discover_devices
 
-List all Kasa smart devices on your network.
+Discover all Kasa smart devices on your local network via UDP broadcast.
 
-**Parameters**: None
+**Parameters:**
+- `timeout` (optional, number): Discovery timeout in milliseconds (default: 5000)
 
-**Returns**: List of devices with their information
+**Returns:** List of discovered devices with:
+- `deviceId` - Unique identifier for the device
+- `alias` - User-friendly device name
+- `type` - Device type (plug, bulb, light-strip, etc.)
+- `model` - Device model number
+- `host` - IP address of the device
+- `port` - Port number (typically 9999)
 
-Example:
+**Example:**
 ```
-Claude: "What Kasa devices do I have?"
-kasa-mcp: Returns list of all connected Kasa devices
+Claude: "Discover my Kasa devices"
+kasa-mcp: Returns list of all connected Kasa devices with their IP addresses
+```
+
+### get_device_info
+
+Get detailed information about a specific Kasa device.
+
+**Parameters:**
+- `deviceId` (optional, string): Device ID from discovery
+- `host` (optional, string): Device IP address
+- `timeout` (optional, number): Operation timeout in milliseconds (default: 30000)
+- (Must provide either `deviceId` or `host`)
+
+**Returns:** Complete device system information including:
+- Device model and hardware version
+- Software version and firmware
+- MAC address
+- **Current power state** (on/off)
+- Device alias/name
+- Device type
+
+**Example:**
+```
+Claude: "Tell me about the device at 192.168.1.100"
+kasa-mcp: Returns detailed device specifications and status
+```
+
+### set_power_state
+
+Turn a Kasa device on or off.
+
+**Parameters:**
+- `deviceId` (optional, string): Device ID from discovery
+- `host` (optional, string): Device IP address
+- `state` (required, boolean): true = on, false = off
+- `timeout` (optional, number): Operation timeout in milliseconds (default: 30000)
+
+**Returns:** Confirmation of power state change
+
+**Example:**
+```
+Claude: "Turn on the living room plug"
+kasa-mcp: Device powered on successfully
+```
+
+### set_brightness
+
+Set the brightness level for Kasa smart bulbs (0-100%).
+
+**Parameters:**
+- `deviceId` (optional, string): Device ID from discovery
+- `host` (optional, string): Device IP address
+- `brightness` (required, number): Brightness percentage (0-100)
+- `timeout` (optional, number): Operation timeout in milliseconds (default: 30000)
+
+**Returns:** Confirmation of brightness change
+
+**Supported Devices:** Smart bulbs and light strips (LB, KL series)
+
+**Example:**
+```
+Claude: "Set the bedroom light to 50% brightness"
+kasa-mcp: Brightness set to 50%
+```
+
+### set_color_temperature
+
+Set the color temperature for Kasa color-tunable bulbs.
+
+**Parameters:**
+- `deviceId` (optional, string): Device ID from discovery
+- `host` (optional, string): Device IP address
+- `temperature` (required, number): Color temperature in Kelvin (2500-9000)
+  - 2500K: Warm white
+  - 4000K: Neutral white
+  - 6500K: Cool white
+  - 9000K: Daylight
+- `timeout` (optional, number): Operation timeout in milliseconds (default: 30000)
+
+**Returns:** Confirmation of color temperature change
+
+**Supported Devices:** Color bulbs (LB130, LB230, KL125, KL128, KL130, KL430)
+
+**Example:**
+```
+Claude: "Set the living room light to warm white (3000K)"
+kasa-mcp: Color temperature updated
+```
+
+### get_realtime_stats
+
+Get real-time energy monitoring statistics for smart plugs.
+
+**Parameters:**
+- `deviceId` (optional, string): Device ID from discovery
+- `host` (optional, string): Device IP address
+- `timeout` (optional, number): Operation timeout in milliseconds (default: 30000)
+
+**Returns:** Current energy usage metrics:
+- `power` - Current power consumption in watts (W)
+- `voltage` - Current voltage in volts (V)
+- `current` - Current amperage in amperes (A)
+- `totalConsumption` - Total energy consumed in watt-hours (Wh)
+
+**Supported Devices:** Smart plugs with energy monitoring (HS110, KP303, KP400)
+
+**Example:**
+```
+Claude: "What's the power usage of my office plug?"
+kasa-mcp: Returns current watts, voltage, current, and total consumption
 ```
 
 ## Configuration
 
 ### Environment Variables (Kasa-specific)
 
-Configure Kasa device discovery:
+Configure Kasa device discovery and control:
 
-- `KASA_NETWORK`: Network interface to scan (optional)
-- `KASA_TIMEOUT`: Discovery timeout in milliseconds (default: 5000)
+- `KASA_DISCOVERY_TIMEOUT`: Discovery timeout in milliseconds (default: 30000)
+  - Controls how long the `discover_devices` tool waits for device responses
+  - Example: `KASA_DISCOVERY_TIMEOUT=10000` (10 seconds)
+
+- `KASA_DEVICE_TIMEOUT`: Device operation timeout in milliseconds (default: 30000)
+  - Controls how long device control operations wait for responses
+  - Applies to: get_device_info, set_power_state, set_brightness, set_color_temperature, get_realtime_stats
+  - Can be overridden per-operation via the timeout parameter
+  - Example: `KASA_DEVICE_TIMEOUT=15000` (15 seconds)
+
+### Network Requirements
+
+The kasa-mcp server communicates with Kasa devices using local network protocols. Ensure your network is properly configured:
+
+**Firewall Rules:**
+- **UDP Port 9999** - Required for device discovery (broadcast)
+- **TCP Port 9999** - Required for device control (Kasa Protocol)
+
+**Network Setup:**
+- Server and devices must be on the **same local subnet** (not separated by router VLANs)
+- Router must allow UDP broadcast packets
+- No VPN or network isolation between server and devices
+- For remote/cloud deployments, the server must be deployed on the same network as Kasa devices
+
+**Device Requirements:**
+- Kasa devices must be powered on and connected to network
+- Devices must be on 2.4 GHz WiFi (some newer models support 5 GHz)
+- Device firmware should be up-to-date for best compatibility
+
+### Supported Device Models
+
+**Smart Plugs with Power Monitoring:**
+- HS110, HS103, HS105 (older generation)
+- KP303, KP400 (current generation)
+
+**Smart Bulbs:**
+- LB100, LB110 (non-color tunable)
+- LB120, LB130 (color tunable)
+- LB200, LB230 (newer generation)
+- KL50, KL120, KL125, KL128, KL130 (current generation)
+
+**Light Strips:**
+- KL430
+
+**Smart Switches:**
+- HS200, HS210, HS220
 
 ## HTTP Transport
 
@@ -345,6 +509,52 @@ MCP_PORT=8080 MCP_TRANSPORT=http node build/index.js
 - Sessions are lost when the server restarts
 - In stateless mode, sessions are not supported
 
+## Usage Examples
+
+### Basic Device Discovery and Control Workflow
+
+1. **Discover your devices:**
+   ```
+   Claude: "What Kasa devices do I have?"
+   → Uses discover_devices tool to find all devices on network
+   ```
+
+2. **Get device information:**
+   ```
+   Claude: "Tell me about the device at 192.168.1.100"
+   → Uses get_device_info tool to show device details
+   ```
+
+3. **Control device power:**
+   ```
+   Claude: "Turn off the living room plug"
+   → Uses set_power_state tool with state: false
+   ```
+
+### Advanced Use Cases
+
+**Smart Lighting Control:**
+```
+Claude: "Set all the lights in my office to 75% brightness with warm color temperature"
+→ Discovers bulbs in the office
+→ Sets each bulb to 75% brightness (set_brightness)
+→ Sets color temperature to 3000K for warm white (set_color_temperature)
+```
+
+**Energy Monitoring:**
+```
+Claude: "How much power am I using on my desk?"
+→ Uses get_realtime_stats to fetch current power consumption
+→ Returns watts, voltage, current, and total usage
+```
+
+**Device Status Check:**
+```
+Claude: "Are my Kasa devices online?"
+→ Discovers devices and retrieves status for each
+→ Reports which devices are online/offline
+```
+
 ## Development
 
 ### Prerequisites
@@ -510,11 +720,64 @@ pnpm install
 pnpm build
 ```
 
-### Devices not found
+### Kasa Device Discovery Issues
 
-1. Verify Kasa devices are on the same network
-2. Check firewall settings allow device discovery
-3. Ensure devices are powered on and connected
+**No devices found after running discover_devices:**
+
+1. **Check physical connectivity:**
+   - Ensure all Kasa devices are powered on
+   - Verify devices are connected to the WiFi network
+   - Check device LED indicators for connection status
+
+2. **Verify network configuration:**
+   - Server and devices must be on the **same subnet** (not different VLANs)
+   - Confirm router allows UDP broadcast (port 9999)
+   - Check firewall isn't blocking the MCP server
+
+3. **Test device connectivity:**
+   - From the server, try to ping a known device IP: `ping 192.168.1.100`
+   - If ping fails, devices are unreachable - check network setup
+
+4. **Try direct device access:**
+   - Instead of discovery, use `get_device_info` with the device's IP address directly
+   - Example: `get_device_info` with `host: "192.168.1.100"`
+
+5. **Check Kasa app:**
+   - Open official TP-Link Kasa app to verify devices are reachable
+   - If devices work in Kasa app but not in kasa-mcp, there may be a network isolation issue
+
+**Device discovery timeout:**
+- The default timeout is 5 seconds
+- On slow networks, increase the timeout: `discover_devices` with `timeout: 10000` (10 seconds)
+
+### Devices Found but Can't Control Them
+
+1. **Verify device is online:**
+   - Use `get_device_info` to check device status
+   - If device returns error, it's offline or unreachable
+
+2. **Check command compatibility:**
+   - Verify device supports the operation (e.g., only bulbs support brightness)
+   - Refer to supported device models section above
+
+3. **Device firmware:**
+   - Update device firmware to latest version via Kasa app
+   - Some features may require recent firmware versions
+
+### Device Control Command Fails
+
+**"Device not found" error:**
+- Verify the device ID or host IP is correct
+- Device may have lost power or connection - try rediscovery
+
+**"Operation not supported" error:**
+- Device doesn't support this feature (e.g., setting brightness on a non-dimmable bulb)
+- Check device model and supported features
+
+**"Timeout" or "No response" error:**
+- Device is offline or unreachable - check network connectivity
+- Try again in a few moments
+- Verify device is on same network as server
 
 ### Configuration file not found (Windows)
 
