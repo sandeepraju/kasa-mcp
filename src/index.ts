@@ -11,7 +11,7 @@ import {
   ReadResourceRequestSchema,
 } from "@modelcontextprotocol/sdk/types.js";
 import { randomUUID } from "node:crypto";
-import type { Express, Request, Response } from "express";
+import type { Request, Response } from "express";
 import { z } from "zod";
 import pkg from "tplink-smarthome-api";
 const { Client } = pkg;
@@ -319,8 +319,16 @@ function createKasaServer(): Server {
     try {
       switch (name) {
         case "discover_devices": {
-          const timeout = (args as any).timeout || KASA_DISCOVERY_TIMEOUT;
-          const devices: any[] = [];
+          const validatedArgs = DiscoverDevicesSchema.parse(args || {});
+          const timeout = validatedArgs.timeout || KASA_DISCOVERY_TIMEOUT;
+          const devices: Array<{
+            deviceId: string;
+            alias: string;
+            type: string;
+            model: string;
+            host: string;
+            port: number;
+          }> = [];
 
           return new Promise((resolve) => {
             // Create a fresh client instance for each discovery
@@ -328,7 +336,14 @@ function createKasaServer(): Server {
             const discoveryClient = new Client();
             const discovery = discoveryClient.startDiscovery({ deviceTypes: ["plug", "bulb"] });
 
-            discovery.on("device-new", (device: any) => {
+            discovery.on("device-new", (device: {
+              deviceId: string;
+              alias: string;
+              deviceType: string;
+              model: string;
+              host: string;
+              port: number;
+            }) => {
               const deviceInfo = {
                 deviceId: device.deviceId,
                 alias: device.alias,
@@ -347,7 +362,7 @@ function createKasaServer(): Server {
             });
 
             // Stop discovery after timeout
-            const timer = setTimeout(() => {
+            setTimeout(() => {
               discoveryClient.stopDiscovery();
               resolve({
                 content: [
@@ -369,12 +384,14 @@ function createKasaServer(): Server {
         }
 
         case "get_device_info": {
-          const args_typed = args as any;
-          const timeout = args_typed.timeout || KASA_DEVICE_TIMEOUT;
+          const validatedArgs = GetDeviceInfoSchema.parse(args || {});
+          const timeout = validatedArgs.timeout || KASA_DEVICE_TIMEOUT;
           const sendOptions = { timeout };
 
-          const device = await getDevice(args_typed.deviceId, args_typed.host, timeout);
+          const device = await getDevice(validatedArgs.deviceId, validatedArgs.host, timeout);
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
           const deviceAny = device as any;
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
           const sysInfo = await deviceAny.getSysInfo(sendOptions) as any;
 
           // Get current power state
@@ -382,7 +399,7 @@ function createKasaServer(): Server {
           try {
             const isOn = await deviceAny.getPowerState(sendOptions);
             powerState = isOn ? "on" : "off";
-          } catch (e) {
+          } catch {
             // Device might not support power state query
           }
 
@@ -392,7 +409,7 @@ function createKasaServer(): Server {
                 type: "text",
                 text: JSON.stringify({
                   success: true,
-                  deviceId: (args_typed.deviceId || sysInfo.deviceId) as string,
+                  deviceId: (validatedArgs.deviceId || sysInfo.deviceId) as string,
                   alias: (sysInfo.alias || deviceAny.alias || "Unknown") as string,
                   model: (sysInfo.model || "Unknown") as string,
                   hwVer: (sysInfo.hw_ver || "Unknown") as string,
@@ -407,36 +424,38 @@ function createKasaServer(): Server {
         }
 
         case "set_power_state": {
-          const args_typed = args as any;
-          const timeout = args_typed.timeout || KASA_DEVICE_TIMEOUT;
+          const validatedArgs = SetPowerStateSchema.parse(args || {});
+          const timeout = validatedArgs.timeout || KASA_DEVICE_TIMEOUT;
           const sendOptions = { timeout };
 
-          const device = await getDevice(args_typed.deviceId, args_typed.host, timeout);
+          const device = await getDevice(validatedArgs.deviceId, validatedArgs.host, timeout);
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
           const deviceAny = device as any;
-          await deviceAny.setPowerState(args_typed.state, sendOptions);
+          await deviceAny.setPowerState(validatedArgs.state, sendOptions);
           const newState = await deviceAny.getPowerState(sendOptions);
 
           return {
             content: [
               {
                 type: "text",
-                text: JSON.stringify({
-                  success: true,
-                  deviceId: args_typed.deviceId || args_typed.host,
-                  powerState: newState ? "on" : "off",
-                  message: `Device turned ${newState ? "on" : "off"}`,
-                }),
+                  text: JSON.stringify({
+                    success: true,
+                    deviceId: validatedArgs.deviceId || validatedArgs.host,
+                    powerState: newState ? "on" : "off",
+                    message: `Device turned ${newState ? "on" : "off"}`,
+                  }),
               },
             ],
           };
         }
 
         case "set_brightness": {
-          const args_typed = args as any;
-          const timeout = args_typed.timeout || KASA_DEVICE_TIMEOUT;
+          const validatedArgs = SetBrightnessSchema.parse(args || {});
+          const timeout = validatedArgs.timeout || KASA_DEVICE_TIMEOUT;
           const sendOptions = { timeout };
 
-          const device = await getDevice(args_typed.deviceId, args_typed.host, timeout);
+          const device = await getDevice(validatedArgs.deviceId, validatedArgs.host, timeout);
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
           const deviceAny = device as any;
 
           // Check if device supports brightness
@@ -444,7 +463,7 @@ function createKasaServer(): Server {
             throw new Error("This device does not support brightness control");
           }
 
-          await deviceAny.lighting.setLightState({ brightness: args_typed.brightness }, sendOptions);
+          await deviceAny.lighting.setLightState({ brightness: validatedArgs.brightness }, sendOptions);
 
           return {
             content: [
@@ -452,9 +471,9 @@ function createKasaServer(): Server {
                 type: "text",
                 text: JSON.stringify({
                   success: true,
-                  deviceId: args_typed.deviceId || args_typed.host,
-                  brightness: args_typed.brightness,
-                  message: `Brightness set to ${args_typed.brightness}%`,
+                  deviceId: validatedArgs.deviceId || validatedArgs.host,
+                  brightness: validatedArgs.brightness,
+                  message: `Brightness set to ${validatedArgs.brightness}%`,
                 }),
               },
             ],
@@ -462,11 +481,12 @@ function createKasaServer(): Server {
         }
 
         case "set_color_temperature": {
-          const args_typed = args as any;
-          const timeout = args_typed.timeout || KASA_DEVICE_TIMEOUT;
+          const validatedArgs = SetColorTemperatureSchema.parse(args || {});
+          const timeout = validatedArgs.timeout || KASA_DEVICE_TIMEOUT;
           const sendOptions = { timeout };
 
-          const device = await getDevice(args_typed.deviceId, args_typed.host, timeout);
+          const device = await getDevice(validatedArgs.deviceId, validatedArgs.host, timeout);
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
           const deviceAny = device as any;
 
           // Check if device supports color temperature
@@ -474,7 +494,7 @@ function createKasaServer(): Server {
             throw new Error("This device does not support color temperature control");
           }
 
-          await deviceAny.lighting.setLightState({ color_temp: args_typed.temperature }, sendOptions);
+          await deviceAny.lighting.setLightState({ color_temp: validatedArgs.temperature }, sendOptions);
 
           return {
             content: [
@@ -482,9 +502,9 @@ function createKasaServer(): Server {
                 type: "text",
                 text: JSON.stringify({
                   success: true,
-                  deviceId: args_typed.deviceId || args_typed.host,
-                  colorTemperature: args_typed.temperature,
-                  message: `Color temperature set to ${args_typed.temperature}K`,
+                  deviceId: validatedArgs.deviceId || validatedArgs.host,
+                  colorTemperature: validatedArgs.temperature,
+                  message: `Color temperature set to ${validatedArgs.temperature}K`,
                 }),
               },
             ],
@@ -492,11 +512,12 @@ function createKasaServer(): Server {
         }
 
         case "get_realtime_stats": {
-          const args_typed = args as any;
-          const timeout = args_typed.timeout || KASA_DEVICE_TIMEOUT;
+          const validatedArgs = GetRealtimeStatsSchema.parse(args || {});
+          const timeout = validatedArgs.timeout || KASA_DEVICE_TIMEOUT;
           const sendOptions = { timeout };
 
-          const device = await getDevice(args_typed.deviceId, args_typed.host, timeout);
+          const device = await getDevice(validatedArgs.deviceId, validatedArgs.host, timeout);
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
           const deviceAny = device as any;
 
           // Check if device supports energy monitoring
@@ -504,6 +525,7 @@ function createKasaServer(): Server {
             throw new Error("This device does not support energy monitoring");
           }
 
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
           const stats = await deviceAny.emeter.getRealtime(sendOptions) as any;
 
           return {
@@ -512,7 +534,7 @@ function createKasaServer(): Server {
                 type: "text",
                 text: JSON.stringify({
                   success: true,
-                  deviceId: args_typed.deviceId || args_typed.host,
+                  deviceId: validatedArgs.deviceId || validatedArgs.host,
                   power: (stats.power || 0) as number,
                   voltage: (stats.voltage || 0) as number,
                   current: (stats.current || 0) as number,
@@ -543,8 +565,10 @@ function createKasaServer(): Server {
             isError: true,
           };
       }
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error(`[kasa-mcp] Tool error for ${name}:`, error);
+      const errorMessage = error instanceof Error ? error.message : "Unknown error";
+      const errorObj = error instanceof Error ? error : new Error(String(error));
       return {
         content: [
           {
@@ -552,8 +576,8 @@ function createKasaServer(): Server {
             text: JSON.stringify({
               error: true,
               tool: name,
-              message: error.message || "Unknown error",
-              suggestion: getErrorSuggestion(error),
+              message: errorMessage,
+              suggestion: getErrorSuggestion(errorObj),
             }, null, 2),
           },
         ],

@@ -2,9 +2,9 @@ name: Build and Test
 
 on:
   push:
-    branches: [main, master]
+    branches: [mainline]
   pull_request:
-    branches: [main, master]
+    branches: [mainline]
 
 jobs:
   build:
@@ -41,5 +41,8 @@ jobs:
           test -x build/index.js || exit 1
       
       - name: Check TypeScript
-        run: pnpm exec tsc --noEmit
+        run: pnpm typecheck
+      
+      - name: Lint code
+        run: pnpm lint
 

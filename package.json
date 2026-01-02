@@ -21,6 +21,10 @@
     "dev": "tsc --watch",
     "prepare": "pnpm run build",
     "test": "node build/index.js",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix",
+    "check": "pnpm typecheck && pnpm lint",
     "inspector": "npx @modelcontextprotocol/inspector node build/index.js",
     "start:stdio": "node build/index.js",
     "start:http": "MCP_TRANSPORT=http node build/index.js",
@@ -60,9 +64,12 @@
     "zod": "^3.25.0"
   },
   "devDependencies": {
+    "@eslint/js": "^9.0.0",
     "@types/express": "^4.17.21",
     "@types/node": "^20.0.0",
-    "typescript": "^5.9.0"
+    "eslint": "^9.0.0",
+    "typescript": "^5.9.0",
+    "typescript-eslint": "^8.0.0"
   },
   "publishConfig": {
     "access": "public"
