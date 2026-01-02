@@ -1,5 +1,13 @@
 # kasa-mcp
 
+[![Build and Test](https://github.com/sandeepraju/kasa-mcp/actions/workflows/build.yml/badge.svg)](https://github.com/sandeepraju/kasa-mcp/actions/workflows/build.yml)
+[![npm version](https://img.shields.io/npm/v/@sandeepraju/kasa-mcp.svg)](https://www.npmjs.com/package/@sandeepraju/kasa-mcp)
+[![npm downloads](https://img.shields.io/npm/dm/@sandeepraju/kasa-mcp.svg)](https://www.npmjs.com/package/@sandeepraju/kasa-mcp)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![Node.js Version](https://img.shields.io/badge/node-%3E%3D18.0.0-brightgreen.svg)](https://nodejs.org/)
+[![TypeScript](https://img.shields.io/badge/TypeScript-5.9-blue.svg)](https://www.typescriptlang.org/)
+[![pnpm](https://img.shields.io/badge/pnpm-8+-orange.svg)](https://pnpm.io/)
+
 > ⚠️ **Heads up:** This project has no affiliation with TP-Link or Kasa. It's a completely unofficial community project. If something goes wrong and your devices act weird, get bricked, or explode into flames - we're not responsible. Use at your own risk and make sure you understand what you're doing before running this with your actual devices.
 
 > 🤖 **Fair warning:** This whole thing was written by AI (Claude). The code might have weird quirks, might look ugly, might do things in a way that makes experienced developers cringe. It's genuinely untested AI-generated code, so please review it, understand what it does, and use it with caution. You've been warned!
