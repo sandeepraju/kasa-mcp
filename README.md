@@ -574,8 +574,20 @@ pnpm build
 # Watch mode for development
 pnpm dev
 
-# Test the server
+# Run tests
 pnpm test
+
+# Run tests in watch mode
+pnpm test:watch
+
+# Run tests with coverage
+pnpm test:coverage
+
+# Run only unit tests
+pnpm test:unit
+
+# Run only integration tests
+pnpm test:integration
 
 # Use MCP Inspector for interactive testing
 pnpm inspector
@@ -595,17 +607,102 @@ Opens at `http://localhost:6274` where you can:
 - See real-time communication
 - Debug issues
 
+### Testing
+
+The project includes a comprehensive test suite using [Vitest](https://vitest.dev/). Tests are organized into unit and integration tests, focusing on behavior and contracts rather than implementation details.
+
+#### Test Structure
+
+- **Unit Tests** (`tests/unit/`): Test individual modules in isolation
+  - Configuration loading
+  - Schema validation
+  - Error handling utilities
+  - Device manager behavior
+
+- **Integration Tests** (`tests/integration/`): Test tool handlers and server components
+  - All 6 tool handlers with mocked dependencies
+  - Tool router and error handling
+  - Server factory and handler registration
+
+- **Test Fixtures** (`tests/fixtures/`): Reusable mock factories and test utilities
+
+#### Running Tests
+
+```bash
+# Run all tests
+pnpm test
+
+# Run tests in watch mode (for development)
+pnpm test:watch
+
+# Run tests with coverage report
+pnpm test:coverage
+
+# Run only unit tests
+pnpm test:unit
+
+# Run only integration tests
+pnpm test:integration
+```
+
+#### Test Philosophy
+
+The test suite follows these principles:
+
+- **Test behavior, not implementation**: Tests verify what the code does, not how it does it
+- **Mock external dependencies**: Kasa API and network calls are mocked
+- **Focus on contracts**: Schema validation, error handling, and tool behavior
+- **Stable through refactoring**: Tests should pass when internal implementation changes
+
+#### Coverage
+
+The test suite aims for 80%+ coverage on business logic, focusing on:
+- Tool handlers and their behavior
+- Validation schemas
+- Error handling and error messages
+- Device manager caching and lookup logic
+
 ### Project Structure
 
 ```
 kasa-mcp/
 ├── src/
-│   └── index.ts           # Main MCP server implementation
-├── build/                 # Compiled JavaScript (generated)
-├── package.json          # Package configuration
-├── tsconfig.json         # TypeScript configuration
-├── README.md             # This file
-└── LICENSE               # MIT License
+│   ├── index.ts              # Main entry point
+│   ├── config/
+│   │   └── index.ts          # Configuration management
+│   ├── device/
+│   │   ├── device-manager.ts # Device operations & caching
+│   │   └── types.ts          # Device-related types
+│   ├── schemas/
+│   │   └── index.ts          # Zod validation schemas
+│   ├── server/
+│   │   ├── create-server.ts  # MCP server factory
+│   │   └── tool-definitions.ts # Tool metadata
+│   ├── tools/
+│   │   ├── index.ts          # Tool router
+│   │   ├── discover-devices.ts
+│   │   ├── get-device-info.ts
+│   │   ├── set-power-state.ts
+│   │   ├── set-brightness.ts
+│   │   ├── set-color-temperature.ts
+│   │   └── get-realtime-stats.ts
+│   ├── transport/
+│   │   ├── stdio.ts          # Stdio transport
+│   │   ├── http-stateful.ts  # HTTP stateful transport
+│   │   └── http-stateless.ts # HTTP stateless transport
+│   └── utils/
+│       └── error-handling.ts  # Error utilities
+├── tests/
+│   ├── unit/                 # Unit tests
+│   ├── integration/          # Integration tests
+│   └── fixtures/             # Test utilities & mocks
+├── build/                    # Compiled JavaScript (generated)
+├── package.json              # Package configuration
+├── tsconfig.json             # TypeScript configuration
+├── vitest.config.ts          # Vitest configuration
+├── eslint.config.js          # ESLint configuration
+├── README.md                 # This file
+└── LICENSE                   # MIT License
 ```
 
 ## Publishing
@@ -614,8 +711,9 @@ kasa-mcp/
 
 1. Update version in `package.json`
 2. Update this README with new features
-3. Test with MCP Inspector
+3. Run the test suite: `pnpm test`
 4. Verify the build: `pnpm build`
+5. Test with MCP Inspector: `pnpm inspector`
 
 ### Publishing to npm
 
