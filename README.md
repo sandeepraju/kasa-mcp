@@ -87,7 +87,7 @@ If you're developing locally and want to test changes immediately, use the local
 {
   "mcpServers": {
     "kasa-mcp": {
-      "command": "node",
+      "command": "/Users/sandeep/.nvm/versions/node/v20.5.1/bin/node",
       "args": ["/Users/sandeep/projects/github.com/sandeepraju/kasa-mcp/build/index.js"]
     }
   }

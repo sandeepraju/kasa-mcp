@@ -6,7 +6,6 @@ dist/
 .env
 .env.local
 .env.*.local
-pnpm-lock.yaml
 .turbo
 .vscode
 .idea

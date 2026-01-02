@@ -1,12 +1,18 @@
 {
-  "name": "kasa-mcp",
+  "name": "@sandeepraju/kasa-mcp",
   "version": "0.1.0",
   "description": "MCP (Model Context Protocol) server for Kasa smart home devices",
   "type": "module",
+  "main": "./build/index.js",
+  "exports": {
+    ".": {
+      "import": "./build/index.js",
+      "types": "./build/index.d.ts"
+    }
+  },
   "bin": {
     "kasa-mcp": "./build/index.js"
   },
-  "main": "./build/index.js",
   "files": [
     "build"
   ],
@@ -30,8 +36,24 @@
     "smart-home",
     "ai"
   ],
-  "author": "Your Name",
+  "author": {
+    "name": "Sandeep Raju Prabhakar",
+    "email": "me@sandeepraju.in",
+    "url": "https://github.com/sandeepraju"
+  },
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/sandeepraju/kasa-mcp.git"
+  },
+  "bugs": {
+    "url": "https://github.com/sandeepraju/kasa-mcp/issues"
+  },
+  "homepage": "https://github.com/sandeepraju/kasa-mcp",
+  "readme": "README.md",
+  "engines": {
+    "node": ">=18.0.0"
+  },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.0.0",
     "tplink-smarthome-api": "^5.0.0",
@@ -41,9 +63,6 @@
     "@types/express": "^4.17.21",
     "@types/node": "^20.0.0",
     "typescript": "^5.9.0"
-  },
-  "engines": {
-    "node": ">=18.0.0"
   },
   "publishConfig": {
     "access": "public"
