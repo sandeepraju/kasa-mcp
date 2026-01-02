@@ -13,7 +13,7 @@ An MCP (Model Context Protocol) server for Kasa smart home devices. Install it a
 The package is available on npm and can be used via `npx`:
 
 ```bash
-npx kasa-mcp@latest
+npx @sandeepraju/kasa-mcp@latest
 ```
 
 ### Step 2: Configure Claude Desktop
@@ -43,7 +43,7 @@ Add the kasa-mcp server to your `claude_desktop_config.json`:
   "mcpServers": {
     "kasa-mcp": {
       "command": "npx",
-      "args": ["kasa-mcp@latest"]
+      "args": ["@sandeepraju/kasa-mcp@latest"]
     }
   }
 }
@@ -60,7 +60,7 @@ Add the kasa-mcp server to your `claude_desktop_config.json`:
     },
     "kasa-mcp": {
       "command": "npx",
-      "args": ["kasa-mcp@latest"]
+      "args": ["@sandeepraju/kasa-mcp@latest"]
     }
   }
 }
@@ -634,7 +634,7 @@ pnpm publish
 
 ```bash
 # Test the published package
-npx kasa-mcp@latest
+npx @sandeepraju/kasa-mcp@latest
 ```
 
 ## Architecture
