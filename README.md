@@ -8,6 +8,8 @@
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.9-blue.svg)](https://www.typescriptlang.org/)
 [![pnpm](https://img.shields.io/badge/pnpm-8+-orange.svg)](https://pnpm.io/)
 
+![kasa-mcp demo](kasa-mcp.gif)
+
 > ⚠️ **Heads up:** This project has no affiliation with TP-Link or Kasa. It's a completely unofficial community project. If something goes wrong and your devices act weird, get bricked, or explode into flames - we're not responsible. Use at your own risk and make sure you understand what you're doing before running this with your actual devices.
 
 > 🤖 **Fair warning:** This whole thing was written by AI (Claude). The code might have weird quirks, might look ugly, might do things in a way that makes experienced developers cringe. It's genuinely untested AI-generated code, so please review it, understand what it does, and use it with caution. You've been warned!
