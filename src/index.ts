@@ -23,6 +23,16 @@ async function main(): Promise<void> {
     config,
   };
 
+  // Graceful shutdown
+  const cleanup = (): void => {
+    console.error("\n[kasa-mcp] Shutting down gracefully...");
+    deviceManager.dispose();
+    process.exit(0);
+  };
+
+  process.on("SIGINT", cleanup);
+  process.on("SIGTERM", cleanup);
+
   console.error(`[kasa-mcp] Starting in ${config.transport.mode} mode...`);
 
   switch (config.transport.mode) {

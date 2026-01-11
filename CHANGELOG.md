@@ -5,7 +5,16 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.0] - 2026-01-07
+
+### Changed
+- **Code Quality**: Major internal refactoring to improve type safety and align with TypeScript best practices by removing all `any` type assertions.
+- **Error Handling**: Standardized all internal errors to use a custom `KasaMCPError` class with an error code enum (`KasaMCPErrorType`). Error responses from the server now include a `code` field for programmatic error handling.
+- **Type Safety**: Replaced complex, verbose type definitions with simpler, more readable type aliases (`KasaDevice`, `KasaClient`).
+- **Reliability**: Implemented a graceful shutdown mechanism (`dispose` method) to ensure network resources are properly closed on process termination, preventing resource leaks.
+
 ## [0.1.0] - 2026-01-02
+
 
 ### Added
 - Initial release of kasa-mcp - MCP (Model Context Protocol) server for Kasa smart home devices
@@ -30,4 +39,5 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Release guide with automated GitHub Actions workflow
 - MCP server protocol implementation for Claude integration
 
+[0.2.0]: https://github.com/sandeepraju/kasa-mcp/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/sandeepraju/kasa-mcp/releases/tag/v0.1.0

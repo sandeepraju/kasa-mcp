@@ -9,7 +9,7 @@ import { createSuccessResponse } from "../utils/error-handling.js";
 
 export async function handleGetDeviceInfo(
   args: unknown,
-  context: ToolContext
+  context: ToolContext,
 ): Promise<CallToolResult> {
   const validatedArgs = GetDeviceInfoSchema.parse(args || {});
   const timeout = validatedArgs.timeout || context.config.kasa.deviceTimeout;
@@ -18,17 +18,17 @@ export async function handleGetDeviceInfo(
   const device = await context.deviceManager.getDevice(
     validatedArgs.deviceId,
     validatedArgs.host,
-    timeout
+    timeout,
   );
+  // The tplink-smarthome-api library has inconsistent Sysinfo types, so we cast to any
+  // to access properties that may or may not exist on all devices.
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const deviceAny = device as any;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const sysInfo = await deviceAny.getSysInfo(sendOptions) as any;
+  const sysInfo = (await device.getSysInfo(sendOptions)) as any;
 
   // Get current power state
   let powerState = "unknown";
   try {
-    const isOn = await deviceAny.getPowerState(sendOptions);
+    const isOn = await device.getPowerState(sendOptions);
     powerState = isOn ? "on" : "off";
   } catch {
     // Device might not support power state query
@@ -37,7 +37,7 @@ export async function handleGetDeviceInfo(
   return createSuccessResponse({
     success: true,
     deviceId: (validatedArgs.deviceId || sysInfo.deviceId) as string,
-    alias: (sysInfo.alias || deviceAny.alias || "Unknown") as string,
+    alias: (sysInfo.alias || device.alias || "Unknown") as string,
     model: (sysInfo.model || "Unknown") as string,
     hwVer: (sysInfo.hw_ver || "Unknown") as string,
     swVer: (sysInfo.sw_ver || "Unknown") as string,
@@ -46,4 +46,5 @@ export async function handleGetDeviceInfo(
     powerState: powerState,
   });
 }
+
 

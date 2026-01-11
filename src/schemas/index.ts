@@ -51,3 +51,4 @@ export const GetRealtimeStatsSchema = z.object({
   message: "Either deviceId or host must be provided",
 });
 
+

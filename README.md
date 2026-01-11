@@ -370,6 +370,31 @@ When running in HTTP mode, the server exposes the following endpoints:
   - Requires `MCP-Session-ID` header
   - Closes the session and cleans up resources
 
+### Error Responses
+
+In the event of a tool execution error, the server will return a JSON response with the following structure. This is particularly relevant for clients using the HTTP transport directly.
+
+```json
+{
+  "error": true,
+  "tool": "tool_name",
+  "code": "ErrorCode",
+  "message": "A descriptive error message.",
+  "suggestion": "A helpful suggestion for how to resolve the error."
+}
+```
+
+The `code` field provides a stable, machine-readable error type. Possible values for `code` are:
+- `UnknownError`
+- `ManagerDisposed`
+- `InvalidArguments`
+- `DeviceNotFound`
+- `UnsupportedOperation`
+- `ResourceNotFound`
+- `NetworkError`
+- `ConnectionTimeout`
+- `DiscoveryFailed`
+
 ### Testing HTTP Server
 
 #### Using MCP Inspector

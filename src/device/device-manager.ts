@@ -3,27 +3,64 @@
  * Encapsulates device caching, client management, and device lookup
  */
 
+import { KasaMCPError, KasaMCPErrorType } from "../utils/errors.js";
 import pkg from "tplink-smarthome-api";
-import type { DeviceInfo } from "./types.js";
+import type { DeviceInfo, KasaClient, KasaDevice } from "./types.js";
 import type { Config } from "../config/index.js";
 
 const { Client } = pkg;
 
 export class DeviceManager {
   private deviceInfoCache: Map<string, DeviceInfo>;
-  private globalKasaClient: InstanceType<typeof Client> | null;
+  private globalKasaClient: KasaClient | null;
   private config: Config;
+  private disposed: boolean;
 
   constructor(config: Config) {
     this.deviceInfoCache = new Map();
     this.globalKasaClient = null;
     this.config = config;
+    this.disposed = false;
+  }
+
+  /**
+   * Gracefully shut down the device manager
+   * - Closes the global Kasa client connection
+   * - Clears the device info cache
+   * - Prevents further operations
+   */
+  dispose(): void {
+    if (this.disposed) {
+      return;
+    }
+
+    if (this.globalKasaClient) {
+      this.globalKasaClient.stopDiscovery();
+      this.globalKasaClient = null;
+    }
+
+    this.deviceInfoCache.clear();
+    this.disposed = true;
+  }
+
+  /**
+   * Check if the device manager has been disposed
+   * @throws Error if the manager is disposed
+   */
+  private checkDisposed(): void {
+    if (this.disposed) {
+      throw new KasaMCPError(
+        "DeviceManager has been disposed.",
+        KasaMCPErrorType.ManagerDisposed,
+      );
+    }
   }
 
   /**
    * Get or create the global Kasa client
    */
-  private getGlobalClient(): InstanceType<typeof Client> {
+  private getGlobalClient(): KasaClient {
+    this.checkDisposed();
     if (!this.globalKasaClient) {
       this.globalKasaClient = new Client();
     }
@@ -34,6 +71,7 @@ export class DeviceManager {
    * Cache device information for faster lookups
    */
   cacheDeviceInfo(deviceId: string, info: DeviceInfo): void {
+    this.checkDisposed();
     this.deviceInfoCache.set(deviceId, info);
   }
 
@@ -41,6 +79,7 @@ export class DeviceManager {
    * Get cached device information
    */
   getCachedDeviceInfo(deviceId: string): DeviceInfo | undefined {
+    this.checkDisposed();
     return this.deviceInfoCache.get(deviceId);
   }
 
@@ -48,9 +87,17 @@ export class DeviceManager {
    * Get device by ID or host
    * Always creates a fresh device connection (don't cache device objects)
    */
-  async getDevice(deviceId?: string, host?: string, timeout?: number): Promise<ReturnType<InstanceType<typeof Client>["getDevice"]>> {
+  async getDevice(
+    deviceId?: string,
+    host?: string,
+    timeout?: number,
+  ): Promise<KasaDevice> {
+    this.checkDisposed();
     if (!deviceId && !host) {
-      throw new Error("Must provide either deviceId or host");
+      throw new KasaMCPError(
+        "Must provide either deviceId or host",
+        KasaMCPErrorType.InvalidArguments,
+      );
     }
 
     // If only deviceId provided, try to look up host from cache
@@ -60,7 +107,10 @@ export class DeviceManager {
     }
 
     if (!host) {
-      throw new Error("Cannot determine device host. Provide host or discover devices first.");
+      throw new KasaMCPError(
+        "Cannot determine device host. Provide host or discover devices first.",
+        KasaMCPErrorType.DeviceNotFound,
+      );
     }
 
     // Build sendOptions if timeout is specified
@@ -74,7 +124,8 @@ export class DeviceManager {
    * Create a new client instance for discovery operations
    * Discovery should use a fresh client to avoid state issues
    */
-  createDiscoveryClient(): InstanceType<typeof Client> {
+  createDiscoveryClient(): KasaClient {
+    this.checkDisposed();
     return new Client();
   }
 }

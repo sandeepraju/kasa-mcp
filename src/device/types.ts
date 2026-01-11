@@ -2,6 +2,8 @@
  * Device-related types
  */
 
+import type { Client } from "tplink-smarthome-api";
+
 export interface DeviceInfo {
   host: string;
   port: number;
@@ -16,4 +18,10 @@ export interface DiscoveredDevice {
   host: string;
   port: number;
 }
+
+export type KasaDevice = Awaited<
+  ReturnType<InstanceType<typeof Client>["getDevice"]>
+>;
+export type KasaClient = InstanceType<typeof Client>;
+
 

@@ -5,11 +5,15 @@
 import type { CallToolResult } from "@modelcontextprotocol/sdk/types.js";
 import { GetRealtimeStatsSchema } from "../schemas/index.js";
 import type { ToolContext } from "./discover-devices.js";
+import {
+  KasaMCPError,
+  KasaMCPErrorType,
+} from "../utils/errors.js";
 import { createSuccessResponse } from "../utils/error-handling.js";
 
 export async function handleGetRealtimeStats(
   args: unknown,
-  context: ToolContext
+  context: ToolContext,
 ): Promise<CallToolResult> {
   const validatedArgs = GetRealtimeStatsSchema.parse(args || {});
   const timeout = validatedArgs.timeout || context.config.kasa.deviceTimeout;
@@ -18,18 +22,20 @@ export async function handleGetRealtimeStats(
   const device = await context.deviceManager.getDevice(
     validatedArgs.deviceId,
     validatedArgs.host,
-    timeout
+    timeout,
   );
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const deviceAny = device as any;
 
   // Check if device supports energy monitoring
-  if (!deviceAny.emeter || !deviceAny.emeter.getRealtime) {
-    throw new Error("This device does not support energy monitoring");
+  if (!device.emeter || !device.emeter.getRealtime) {
+    throw new KasaMCPError(
+      "This device does not support energy monitoring",
+      KasaMCPErrorType.UnsupportedOperation,
+    );
   }
 
+  // The upstream library returns unknown, so we cast to any
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const stats = await deviceAny.emeter.getRealtime(sendOptions) as any;
+  const stats = (await device.emeter.getRealtime(sendOptions)) as any;
 
   return createSuccessResponse({
     success: true,
@@ -46,4 +52,5 @@ export async function handleGetRealtimeStats(
     },
   });
 }
+
 

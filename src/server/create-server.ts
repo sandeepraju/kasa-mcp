@@ -3,6 +3,9 @@
  * Creates and configures the MCP server instance
  */
 
+import { readFileSync } from "node:fs";
+import { fileURLToPath } from "node:url";
+import { dirname, join } from "node:path";
 import { Server } from "@modelcontextprotocol/sdk/server/index.js";
 import {
   CallToolRequestSchema,
@@ -10,9 +13,17 @@ import {
   ListResourcesRequestSchema,
   ReadResourceRequestSchema,
 } from "@modelcontextprotocol/sdk/types.js";
+import { KasaMCPError, KasaMCPErrorType } from "../utils/errors.js";
 import { TOOL_DEFINITIONS } from "./tool-definitions.js";
 import { executeTool } from "../tools/index.js";
 import type { ToolContext } from "../tools/discover-devices.js";
+
+// Dynamically read version from package.json
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
+const packageJsonPath = join(__dirname, "..", "..", "package.json");
+const packageJson = JSON.parse(readFileSync(packageJsonPath, "utf-8"));
+const { version } = packageJson;
 
 /**
  * Create a configured MCP server instance
@@ -21,14 +32,14 @@ export function createKasaServer(context: ToolContext): Server {
   const server = new Server(
     {
       name: "kasa-mcp",
-      version: "0.1.0",
+      version: version,
     },
     {
       capabilities: {
         tools: {},
         resources: {},
       },
-    }
+    },
   );
 
   // Register tool list handler
@@ -53,9 +64,13 @@ export function createKasaServer(context: ToolContext): Server {
 
   server.setRequestHandler(ReadResourceRequestSchema, async (request) => {
     const { uri } = request.params;
-    throw new Error(`Resource not found: ${uri}`);
+    throw new KasaMCPError(
+      `Resource not found: ${uri}`,
+      KasaMCPErrorType.ResourceNotFound,
+    );
   });
 
   return server;
 }
+
 

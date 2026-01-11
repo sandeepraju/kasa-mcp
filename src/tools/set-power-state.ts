@@ -9,7 +9,7 @@ import { createSuccessResponse } from "../utils/error-handling.js";
 
 export async function handleSetPowerState(
   args: unknown,
-  context: ToolContext
+  context: ToolContext,
 ): Promise<CallToolResult> {
   const validatedArgs = SetPowerStateSchema.parse(args || {});
   const timeout = validatedArgs.timeout || context.config.kasa.deviceTimeout;
@@ -18,12 +18,10 @@ export async function handleSetPowerState(
   const device = await context.deviceManager.getDevice(
     validatedArgs.deviceId,
     validatedArgs.host,
-    timeout
+    timeout,
   );
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const deviceAny = device as any;
-  await deviceAny.setPowerState(validatedArgs.state, sendOptions);
-  const newState = await deviceAny.getPowerState(sendOptions);
+  await device.setPowerState(validatedArgs.state, sendOptions);
+  const newState = await device.getPowerState(sendOptions);
 
   return createSuccessResponse({
     success: true,
@@ -32,4 +30,5 @@ export async function handleSetPowerState(
     message: `Device turned ${newState ? "on" : "off"}`,
   });
 }
+
 
