@@ -1,9 +1,9 @@
 {
     "mcpServers": {
         "kasa-mcp": {
-            "command": "/Users/sandeep/.nvm/versions/node/v20.5.1/bin/node",
+            "command": "~/.nvm/versions/node/v20.5.1/bin/node",
             "args": [
-                "/Users/sandeep/projects/github.com/sandeepraju/kasa-mcp/build/index.js"
+                "~/projects/github.com/sandeepraju/kasa-mcp/build/index.js"
             ]
         }
     }
