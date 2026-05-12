@@ -3,9 +3,6 @@
  * Creates and configures the MCP server instance
  */
 
-import { readFileSync } from "node:fs";
-import { fileURLToPath } from "node:url";
-import { dirname, join } from "node:path";
 import { Server } from "@modelcontextprotocol/sdk/server/index.js";
 import {
   CallToolRequestSchema,
@@ -16,14 +13,11 @@ import {
 import { KasaMCPError, KasaMCPErrorType } from "../utils/errors.js";
 import { TOOL_DEFINITIONS } from "./tool-definitions.js";
 import { executeTool } from "../tools/index.js";
-import type { ToolContext } from "../tools/discover-devices.js";
+import type { ToolContext } from "../tools/types.js";
+import { createRequire } from "node:module";
 
-// Dynamically read version from package.json
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = dirname(__filename);
-const packageJsonPath = join(__dirname, "..", "..", "package.json");
-const packageJson = JSON.parse(readFileSync(packageJsonPath, "utf-8"));
-const { version } = packageJson;
+const _require = createRequire(import.meta.url);
+const { version } = _require("../../package.json") as { version: string };
 
 /**
  * Create a configured MCP server instance

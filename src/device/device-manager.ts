@@ -24,29 +24,31 @@ export class DeviceManager {
   }
 
   /**
-   * Gracefully shut down the device manager
-   * - Closes the global Kasa client connection
-   * - Clears the device info cache
-   * - Prevents further operations
+   * Gracefully shut down the device manager.
+   * Idempotent — safe to call multiple times.
    */
   dispose(): void {
     if (this.disposed) {
       return;
     }
 
+    // Mark disposed first so concurrent getDevice calls that just passed
+    // checkDisposed() will still operate on a valid client, but no new
+    // operations can start after this point.
+    this.disposed = true;
+
     if (this.globalKasaClient) {
-      this.globalKasaClient.stopDiscovery();
+      try {
+        this.globalKasaClient.stopDiscovery();
+      } catch {
+        // Ignore cleanup errors during shutdown
+      }
       this.globalKasaClient = null;
     }
 
     this.deviceInfoCache.clear();
-    this.disposed = true;
   }
 
-  /**
-   * Check if the device manager has been disposed
-   * @throws Error if the manager is disposed
-   */
   private checkDisposed(): void {
     if (this.disposed) {
       throw new KasaMCPError(
@@ -57,7 +59,12 @@ export class DeviceManager {
   }
 
   /**
-   * Get or create the global Kasa client
+   * Return the shared Kasa client, creating it on first use.
+   *
+   * Node.js is single-threaded: the client is created synchronously, so
+   * concurrent async callers that all see `null` on entry are impossible
+   * within the same turn of the event loop. A dispose() race is guarded
+   * by setting `this.disposed = true` before clearing the client.
    */
   private getGlobalClient(): KasaClient {
     this.checkDisposed();
@@ -67,25 +74,19 @@ export class DeviceManager {
     return this.globalKasaClient;
   }
 
-  /**
-   * Cache device information for faster lookups
-   */
   cacheDeviceInfo(deviceId: string, info: DeviceInfo): void {
     this.checkDisposed();
     this.deviceInfoCache.set(deviceId, info);
   }
 
-  /**
-   * Get cached device information
-   */
   getCachedDeviceInfo(deviceId: string): DeviceInfo | undefined {
     this.checkDisposed();
     return this.deviceInfoCache.get(deviceId);
   }
 
   /**
-   * Get device by ID or host
-   * Always creates a fresh device connection (don't cache device objects)
+   * Get device by ID or host.
+   * Always creates a fresh device connection — device objects are never cached.
    */
   async getDevice(
     deviceId?: string,
@@ -100,33 +101,29 @@ export class DeviceManager {
       );
     }
 
-    // If only deviceId provided, try to look up host from cache
-    if (deviceId && !host && this.deviceInfoCache.has(deviceId)) {
+    if (deviceId && !host) {
       const cached = this.deviceInfoCache.get(deviceId);
-      host = cached!.host;
+      if (cached) host = cached.host;
     }
 
     if (!host) {
       throw new KasaMCPError(
         "Cannot determine device host. Provide host or discover devices first.",
         KasaMCPErrorType.DeviceNotFound,
+        { deviceId },
       );
     }
 
-    // Build sendOptions if timeout is specified
     const sendOptions = timeout ? { timeout } : undefined;
-
-    // Always get a fresh device connection from the global client
     return await this.getGlobalClient().getDevice({ host }, sendOptions);
   }
 
   /**
-   * Create a new client instance for discovery operations
-   * Discovery should use a fresh client to avoid state issues
+   * Create a new client instance for discovery operations.
+   * Discovery uses a fresh client to avoid state issues from previous runs.
    */
   createDiscoveryClient(): KasaClient {
     this.checkDisposed();
     return new Client();
   }
 }
-

@@ -4,7 +4,7 @@
  */
 
 import type { CallToolResult } from "@modelcontextprotocol/sdk/types.js";
-import type { ToolContext } from "./discover-devices.js";
+import type { ToolContext } from "./types.js";
 import { handleDiscoverDevices } from "./discover-devices.js";
 import { handleGetDeviceInfo } from "./get-device-info.js";
 import { handleSetPowerState } from "./set-power-state.js";
