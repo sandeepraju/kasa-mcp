@@ -48,6 +48,7 @@ export function createMockClient() {
     getDevice: vi.fn().mockResolvedValue(mockDevice),
     startDiscovery: vi.fn().mockReturnValue({
       on: vi.fn(),
+      removeListener: vi.fn(),
       stopDiscovery: vi.fn(),
     }),
     stopDiscovery: vi.fn(),
@@ -84,6 +85,7 @@ export function createMockConfig(overrides?: Partial<Config>): Config {
     kasa: {
       discoveryTimeout: 5000,
       deviceTimeout: 30000,
+      deviceTypes: ["plug", "bulb"] as Array<"plug" | "bulb">,
     },
     ...overrides,
   };

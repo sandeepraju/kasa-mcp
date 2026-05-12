@@ -2,9 +2,8 @@
  * Server factory tests
  */
 
-import { describe, it, expect, beforeEach, vi } from "vitest";
+import { describe, it, expect, beforeEach } from "vitest";
 import { createKasaServer } from "../../src/server/create-server.js";
-import { TOOL_DEFINITIONS } from "../../src/server/tool-definitions.js";
 import { createToolContext } from "../fixtures/mock-device.js";
 
 describe("createKasaServer", () => {

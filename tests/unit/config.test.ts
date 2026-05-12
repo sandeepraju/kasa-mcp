@@ -3,7 +3,7 @@
  */
 
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
-import { loadConfig, type Config } from "../../src/config/index.js";
+import { loadConfig } from "../../src/config/index.js";
 
 describe("loadConfig", () => {
   const originalEnv = process.env;
@@ -24,6 +24,7 @@ describe("loadConfig", () => {
     delete process.env.MCP_SESSION_MODE;
     delete process.env.KASA_DISCOVERY_TIMEOUT;
     delete process.env.KASA_DEVICE_TIMEOUT;
+    delete process.env.KASA_DEVICE_TYPES;
 
     const config = loadConfig();
 
@@ -33,6 +34,7 @@ describe("loadConfig", () => {
     expect(config.transport.sessionMode).toBe(true);
     expect(config.kasa.discoveryTimeout).toBe(30000);
     expect(config.kasa.deviceTimeout).toBe(30000);
+    expect(config.kasa.deviceTypes).toEqual(["plug", "bulb"]);
   });
 
   it("parses environment variables correctly", () => {
@@ -42,6 +44,7 @@ describe("loadConfig", () => {
     process.env.MCP_SESSION_MODE = "stateless";
     process.env.KASA_DISCOVERY_TIMEOUT = "10000";
     process.env.KASA_DEVICE_TIMEOUT = "15000";
+    process.env.KASA_DEVICE_TYPES = "plug";
 
     const config = loadConfig();
 
@@ -51,16 +54,22 @@ describe("loadConfig", () => {
     expect(config.transport.sessionMode).toBe(false);
     expect(config.kasa.discoveryTimeout).toBe(10000);
     expect(config.kasa.deviceTimeout).toBe(15000);
+    expect(config.kasa.deviceTypes).toEqual(["plug"]);
   });
 
-  it("handles invalid port numbers gracefully", () => {
+  it("throws on invalid port numbers", () => {
     process.env.MCP_PORT = "invalid";
+    expect(() => loadConfig()).toThrow('Invalid port "invalid"');
+  });
 
-    const config = loadConfig();
+  it("throws on negative discovery timeout", () => {
+    process.env.KASA_DISCOVERY_TIMEOUT = "-1";
+    expect(() => loadConfig()).toThrow();
+  });
 
-    // parseInt returns NaN for invalid input, which should be handled
-    // The actual behavior depends on how parseInt handles NaN
-    expect(config.transport.port).toBeNaN();
+  it("throws on unknown MCP_TRANSPORT value", () => {
+    process.env.MCP_TRANSPORT = "garbage";
+    expect(() => loadConfig()).toThrow();
   });
 
   it("correctly interprets session mode from env", () => {
@@ -85,6 +94,7 @@ describe("loadConfig", () => {
     expect(config.transport).toHaveProperty("sessionMode");
     expect(config.kasa).toHaveProperty("discoveryTimeout");
     expect(config.kasa).toHaveProperty("deviceTimeout");
+    expect(config.kasa).toHaveProperty("deviceTypes");
   });
 });
 

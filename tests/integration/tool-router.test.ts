@@ -26,6 +26,7 @@ describe("executeTool", () => {
     const mockClient = mockDeviceManager.createDiscoveryClient();
     const mockDiscovery = {
       on: vi.fn(),
+      removeListener: vi.fn(),
       stopDiscovery: vi.fn(),
     };
     vi.mocked(mockClient.startDiscovery).mockReturnValue(mockDiscovery as any);
@@ -54,6 +55,7 @@ describe("executeTool", () => {
     const mockClient = mockDeviceManager.createDiscoveryClient();
     const mockDiscovery = {
       on: vi.fn(),
+      removeListener: vi.fn(),
       stopDiscovery: vi.fn(),
     };
     vi.mocked(mockClient.startDiscovery).mockReturnValue(mockDiscovery as any);

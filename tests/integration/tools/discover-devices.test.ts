@@ -41,6 +41,7 @@ describe("handleDiscoverDevices", () => {
           }, 10);
         }
       }),
+      removeListener: vi.fn(),
       stopDiscovery: vi.fn(),
     };
 
@@ -74,6 +75,7 @@ describe("handleDiscoverDevices", () => {
           }, 10);
         }
       }),
+      removeListener: vi.fn(),
       stopDiscovery: vi.fn(),
     };
 
@@ -96,6 +98,7 @@ describe("handleDiscoverDevices", () => {
     const mockStopDiscovery = vi.fn();
     const mockDiscovery = {
       on: vi.fn(),
+      removeListener: vi.fn(),
       stopDiscovery: mockStopDiscovery,
     };
 
@@ -117,6 +120,7 @@ describe("handleDiscoverDevices", () => {
     const mockClient = mockDeviceManager.createDiscoveryClient();
     const mockDiscovery = {
       on: vi.fn(),
+      removeListener: vi.fn(),
       stopDiscovery: vi.fn(),
     };
 
@@ -150,6 +154,7 @@ describe("handleDiscoverDevices", () => {
           }, 10);
         }
       }),
+      removeListener: vi.fn(),
       stopDiscovery: vi.fn(),
     };
 
@@ -161,6 +166,7 @@ describe("handleDiscoverDevices", () => {
     // Test without devices
     const mockDiscoveryEmpty = {
       on: vi.fn(),
+      removeListener: vi.fn(),
       stopDiscovery: vi.fn(),
     };
     vi.mocked(mockClient.startDiscovery).mockReturnValue(mockDiscoveryEmpty as any);
@@ -173,6 +179,7 @@ describe("handleDiscoverDevices", () => {
     const mockClient = mockDeviceManager.createDiscoveryClient();
     const mockDiscovery = {
       on: vi.fn(),
+      removeListener: vi.fn(),
       stopDiscovery: vi.fn(),
     };
 
