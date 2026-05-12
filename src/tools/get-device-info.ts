@@ -4,15 +4,41 @@
 
 import type { CallToolResult } from "@modelcontextprotocol/sdk/types.js";
 import { GetDeviceInfoSchema } from "../schemas/index.js";
-import type { ToolContext } from "./discover-devices.js";
-import { createSuccessResponse } from "../utils/error-handling.js";
+import type { ToolContext } from "./types.js";
+import { createSuccessResponse, createErrorResponse } from "../utils/error-handling.js";
+import { KasaMCPError, KasaMCPErrorType } from "../utils/errors.js";
+
+// The tplink-smarthome-api sysInfo shape has different fields across device types.
+// We model only what we read here rather than casting to `any`.
+interface KasaSysInfo {
+  deviceId?: string;
+  alias?: string;
+  model?: string;
+  hw_ver?: string;
+  sw_ver?: string;
+  mic_type?: string;
+  mac?: string;
+  ethernet_mac?: string;
+}
 
 export async function handleGetDeviceInfo(
   args: unknown,
   context: ToolContext,
 ): Promise<CallToolResult> {
-  const validatedArgs = GetDeviceInfoSchema.parse(args || {});
-  const timeout = validatedArgs.timeout || context.config.kasa.deviceTimeout;
+  const parseResult = GetDeviceInfoSchema.safeParse(args || {});
+  if (!parseResult.success) {
+    return createErrorResponse(
+      "get_device_info",
+      new KasaMCPError(
+        parseResult.error.issues.map((i) => `${i.path.join(".")}: ${i.message}`).join("; "),
+        KasaMCPErrorType.InvalidArguments,
+        { field: parseResult.error.issues[0]?.path.join(".") }
+      )
+    );
+  }
+
+  const validatedArgs = parseResult.data;
+  const timeout = validatedArgs.timeout ?? context.config.kasa.deviceTimeout;
   const sendOptions = { timeout };
 
   const device = await context.deviceManager.getDevice(
@@ -20,31 +46,33 @@ export async function handleGetDeviceInfo(
     validatedArgs.host,
     timeout,
   );
-  // The tplink-smarthome-api library has inconsistent Sysinfo types, so we cast to any
-  // to access properties that may or may not exist on all devices.
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const sysInfo = (await device.getSysInfo(sendOptions)) as any;
 
-  // Get current power state
+  const sysInfo = await (device.getSysInfo as (opts: typeof sendOptions) => Promise<KasaSysInfo>)(sendOptions);
+
   let powerState = "unknown";
+  let powerStateError: string | undefined;
   try {
     const isOn = await device.getPowerState(sendOptions);
     powerState = isOn ? "on" : "off";
-  } catch {
-    // Device might not support power state query
+  } catch (err) {
+    powerStateError = err instanceof Error ? err.message : String(err);
+    console.error("[kasa-mcp] get_device_info: getPowerState failed:", powerStateError);
   }
 
-  return createSuccessResponse({
+  const response: Record<string, unknown> = {
     success: true,
-    deviceId: (validatedArgs.deviceId || sysInfo.deviceId) as string,
-    alias: (sysInfo.alias || device.alias || "Unknown") as string,
-    model: (sysInfo.model || "Unknown") as string,
-    hwVer: (sysInfo.hw_ver || "Unknown") as string,
-    swVer: (sysInfo.sw_ver || "Unknown") as string,
-    type: (sysInfo.mic_type || "Unknown") as string,
-    macAddress: (sysInfo.mac || sysInfo.ethernet_mac || "Unknown") as string,
-    powerState: powerState,
-  });
+    deviceId: (validatedArgs.deviceId ?? sysInfo.deviceId) ?? "",
+    alias: sysInfo.alias ?? device.alias ?? "Unknown",
+    model: sysInfo.model ?? "Unknown",
+    hwVer: sysInfo.hw_ver ?? "Unknown",
+    swVer: sysInfo.sw_ver ?? "Unknown",
+    type: sysInfo.mic_type ?? "Unknown",
+    macAddress: sysInfo.mac ?? sysInfo.ethernet_mac ?? "Unknown",
+    powerState,
+  };
+  if (powerStateError) {
+    response.powerStateError = powerStateError;
+  }
+
+  return createSuccessResponse(response);
 }
-
-

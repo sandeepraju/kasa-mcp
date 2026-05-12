@@ -8,19 +8,59 @@ import { createMcpExpressApp } from "@modelcontextprotocol/sdk/server/express.js
 import { randomUUID } from "node:crypto";
 import type { Request, Response } from "express";
 import { createKasaServer } from "../server/create-server.js";
-import type { ToolContext } from "../tools/discover-devices.js";
+import type { ToolContext } from "../tools/types.js";
 import type { Config } from "../config/index.js";
 
-export async function runHttpStateful(context: ToolContext, config: Config): Promise<void> {
+// How long a session may be idle before it is evicted (env: MCP_SESSION_IDLE_MS)
+const SESSION_IDLE_MS = parseInt(
+  process.env.MCP_SESSION_IDLE_MS || String(30 * 60 * 1000),
+  10
+);
+
+// Maximum concurrent sessions (env: MCP_MAX_SESSIONS)
+const MAX_SESSIONS = parseInt(process.env.MCP_MAX_SESSIONS || "100", 10);
+
+interface SessionEntry {
+  server: Server;
+  transport: StreamableHTTPServerTransport;
+  lastActivityAt: number;
+}
+
+async function closeSession(
+  sessionId: string,
+  entry: SessionEntry,
+  sessions: Map<string, SessionEntry>
+): Promise<void> {
+  sessions.delete(sessionId);
+  try {
+    await entry.transport.close();
+    await entry.server.close();
+  } catch (err) {
+    console.error(`[kasa-mcp] Error closing session ${sessionId}:`, err);
+  }
+}
+
+export async function runHttpStateful(
+  context: ToolContext,
+  config: Config,
+  signal: AbortSignal
+): Promise<void> {
   const app = createMcpExpressApp({ host: config.transport.host });
 
-  // Map to store active sessions
-  const sessions = new Map<
-    string,
-    { server: Server; transport: StreamableHTTPServerTransport }
-  >();
+  const sessions = new Map<string, SessionEntry>();
 
-  // Helper to handle request errors
+  // Periodically evict sessions that have been idle too long.
+  const sweepInterval = setInterval(() => {
+    const now = Date.now();
+    for (const [id, entry] of sessions) {
+      if (now - entry.lastActivityAt > SESSION_IDLE_MS) {
+        console.error(`[kasa-mcp] Evicting idle session ${id}`);
+        void closeSession(id, entry, sessions);
+      }
+    }
+  }, Math.min(SESSION_IDLE_MS, 60_000));
+  sweepInterval.unref();
+
   const sendJsonRpcError = (
     res: Response,
     code: number,
@@ -36,39 +76,55 @@ export async function runHttpStateful(context: ToolContext, config: Config): Pro
     }
   };
 
-  // POST /mcp - Main endpoint
+  // POST /mcp
   app.post("/mcp", async (req: Request, res: Response) => {
     try {
       const sessionId = req.headers["mcp-session-id"] as string | undefined;
       const contentType = req.headers["content-type"];
 
-      if (!contentType || !contentType.includes("application/json")) {
+      if (!contentType?.includes("application/json")) {
         return sendJsonRpcError(res, -32600, "Invalid Content-Type");
       }
 
       // New session (initialization request)
       if (!sessionId) {
-        const newSessionId = randomUUID();
+        if (sessions.size >= MAX_SESSIONS) {
+          return sendJsonRpcError(
+            res,
+            -32000,
+            `Server is at capacity (max ${MAX_SESSIONS} sessions). Please try again later.`
+          );
+        }
+
         const server = createKasaServer(context);
+        let resolvedSessionId: string | undefined;
+
         const transport = new StreamableHTTPServerTransport({
-          sessionIdGenerator: () => newSessionId,
+          sessionIdGenerator: randomUUID,
+          onsessioninitialized: (id) => {
+            resolvedSessionId = id;
+            sessions.set(id, {
+              server,
+              transport,
+              lastActivityAt: Date.now(),
+            });
+          },
         });
 
-        sessions.set(newSessionId, { server, transport });
+        transport.onclose = () => {
+          if (resolvedSessionId) {
+            sessions.delete(resolvedSessionId);
+          }
+        };
 
         try {
           await server.connect(transport);
           await transport.handleRequest(req, res, req.body);
-
-          // Clean up on transport close
-          const onTransportClose = () => {
-            sessions.delete(newSessionId);
-            transport.onclose?.();
-          };
-          transport.onclose = onTransportClose;
         } catch (error) {
-          sessions.delete(newSessionId);
-          console.error(`[kasa-mcp] Error initializing session ${newSessionId}:`, error);
+          if (resolvedSessionId) {
+            sessions.delete(resolvedSessionId);
+          }
+          console.error("[kasa-mcp] Error initializing session:", error);
           if (!res.headersSent) {
             res.status(500).json({
               jsonrpc: "2.0",
@@ -85,6 +141,8 @@ export async function runHttpStateful(context: ToolContext, config: Config): Pro
       if (!session) {
         return sendJsonRpcError(res, -32000, `Invalid session ID: ${sessionId}`);
       }
+
+      session.lastActivityAt = Date.now();
 
       try {
         await session.transport.handleRequest(req, res, req.body);
@@ -113,7 +171,7 @@ export async function runHttpStateful(context: ToolContext, config: Config): Pro
     }
   });
 
-  // GET /mcp - SSE stream
+  // GET /mcp — SSE stream
   app.get("/mcp", async (req: Request, res: Response) => {
     try {
       const sessionId = req.headers["mcp-session-id"] as string | undefined;
@@ -128,6 +186,7 @@ export async function runHttpStateful(context: ToolContext, config: Config): Pro
         return;
       }
 
+      session.lastActivityAt = Date.now();
       await session.transport.handleRequest(req, res);
     } catch (error) {
       console.error("[kasa-mcp] Error in GET /mcp:", error);
@@ -137,7 +196,7 @@ export async function runHttpStateful(context: ToolContext, config: Config): Pro
     }
   });
 
-  // DELETE /mcp - Terminate session
+  // DELETE /mcp — terminate session
   app.delete("/mcp", async (req: Request, res: Response) => {
     try {
       const sessionId = req.headers["mcp-session-id"] as string | undefined;
@@ -152,10 +211,7 @@ export async function runHttpStateful(context: ToolContext, config: Config): Pro
         return;
       }
 
-      await session.transport.close();
-      await session.server.close();
-      sessions.delete(sessionId);
-
+      await closeSession(sessionId, session, sessions);
       res.json({ success: true, message: `Session ${sessionId} closed` });
     } catch (error) {
       console.error("[kasa-mcp] Error in DELETE /mcp:", error);
@@ -165,27 +221,29 @@ export async function runHttpStateful(context: ToolContext, config: Config): Pro
     }
   });
 
-  const server = app.listen(config.transport.port, config.transport.host, () => {
-    console.error(
-      `[kasa-mcp] HTTP Server listening on http://${config.transport.host}:${config.transport.port}/mcp (stateful mode)`
-    );
-  });
-
-  // Graceful shutdown
-  process.on("SIGINT", async () => {
-    console.error("[kasa-mcp] Shutting down HTTP server...");
-    for (const [sessionId, session] of sessions) {
-      try {
-        await session.transport.close();
-        await session.server.close();
-      } catch (error) {
-        console.error(`[kasa-mcp] Error closing session ${sessionId}:`, error);
-      }
+  const httpServer = app.listen(
+    config.transport.port,
+    config.transport.host,
+    () => {
+      console.error(
+        `[kasa-mcp] HTTP Server listening on http://${config.transport.host}:${config.transport.port}/mcp (stateful mode)`
+      );
     }
-    server.close(() => {
-      process.exit(0);
+  );
+
+  return new Promise<void>((resolve) => {
+    signal.addEventListener("abort", async () => {
+      console.error("[kasa-mcp] Shutting down stateful HTTP server...");
+      clearInterval(sweepInterval);
+
+      // Close all active sessions
+      await Promise.allSettled(
+        [...sessions.entries()].map(([id, entry]) =>
+          closeSession(id, entry, sessions)
+        )
+      );
+
+      httpServer.close(() => resolve());
     });
   });
 }
-
-

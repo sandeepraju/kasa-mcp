@@ -4,31 +4,51 @@
 
 import type { CallToolResult } from "@modelcontextprotocol/sdk/types.js";
 import { DiscoverDevicesSchema } from "../schemas/index.js";
-import type { DeviceManager } from "../device/device-manager.js";
-import type { Config } from "../config/index.js";
+import type { ToolContext } from "./types.js";
 import type { DiscoveredDevice } from "../device/types.js";
-import { createSuccessResponse } from "../utils/error-handling.js";
+import { createSuccessResponse, createErrorResponse } from "../utils/error-handling.js";
+import { KasaMCPError, KasaMCPErrorType } from "../utils/errors.js";
 
-export interface ToolContext {
-  deviceManager: DeviceManager;
-  config: Config;
-}
+// Re-export for any callers that still import from here
+export type { ToolContext };
 
 export async function handleDiscoverDevices(
   args: unknown,
   context: ToolContext
 ): Promise<CallToolResult> {
-  const validatedArgs = DiscoverDevicesSchema.parse(args || {});
-  const timeout = validatedArgs.timeout || context.config.kasa.discoveryTimeout;
+  const parseResult = DiscoverDevicesSchema.safeParse(args || {});
+  if (!parseResult.success) {
+    return createErrorResponse(
+      "discover_devices",
+      new KasaMCPError(
+        parseResult.error.issues.map((i) => `${i.path.join(".")}: ${i.message}`).join("; "),
+        KasaMCPErrorType.InvalidArguments,
+        { field: parseResult.error.issues[0]?.path.join(".") }
+      )
+    );
+  }
+  const validatedArgs = parseResult.data;
+  const timeout = validatedArgs.timeout ?? context.config.kasa.discoveryTimeout;
   const devices: DiscoveredDevice[] = [];
 
-  return new Promise((resolve) => {
-    // Create a fresh client instance for each discovery
-    // This avoids state issues from previous discoveries
-    const discoveryClient = context.deviceManager.createDiscoveryClient();
-    const discovery = discoveryClient.startDiscovery({ deviceTypes: ["plug", "bulb"] });
+  return new Promise((resolve, reject) => {
+    // timerHandle must be let so the closure in onError can clearTimeout it
+    // eslint-disable-next-line prefer-const
+    let timerHandle: ReturnType<typeof setTimeout>;
 
-    discovery.on("device-new", (device: {
+    const discoveryClient = context.deviceManager.createDiscoveryClient();
+
+    let discovery: ReturnType<typeof discoveryClient.startDiscovery>;
+    try {
+      discovery = discoveryClient.startDiscovery({
+        deviceTypes: context.config.kasa.deviceTypes,
+      });
+    } catch (err) {
+      reject(err instanceof Error ? err : new Error(String(err)));
+      return;
+    }
+
+    const onDeviceNew = (device: {
       deviceId: string;
       alias: string;
       deviceType: string;
@@ -45,27 +65,38 @@ export async function handleDiscoverDevices(
         port: device.port,
       };
       devices.push(deviceInfo);
-      // Cache device info (host, port, alias) for faster lookups
       context.deviceManager.cacheDeviceInfo(device.deviceId, {
         host: device.host,
         port: device.port,
         alias: device.alias,
       });
-    });
+    };
 
-    // Stop discovery after timeout
-    setTimeout(() => {
+    const onError = (err: Error) => {
+      clearTimeout(timerHandle);
+      discovery.removeListener("device-new", onDeviceNew);
       discoveryClient.stopDiscovery();
-      resolve(createSuccessResponse({
-        success: true,
-        count: devices.length,
-        devices: devices,
-        message: devices.length > 0
-          ? `Found ${devices.length} device(s)`
-          : "No devices found. Check that devices are powered on and on the same network.",
-      }));
+      reject(err);
+    };
+
+    discovery.on("device-new", onDeviceNew);
+    discovery.on("error", onError);
+
+    timerHandle = setTimeout(() => {
+      discovery.removeListener("device-new", onDeviceNew);
+      discovery.removeListener("error", onError);
+      discoveryClient.stopDiscovery();
+      resolve(
+        createSuccessResponse({
+          success: true,
+          count: devices.length,
+          devices,
+          message:
+            devices.length > 0
+              ? `Found ${devices.length} device(s)`
+              : "No devices found. Check that devices are powered on and on the same network.",
+        })
+      );
     }, timeout);
   });
 }
-
-

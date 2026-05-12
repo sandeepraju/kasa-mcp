@@ -2,47 +2,66 @@
  * Error handling utilities
  */
 
+import { ZodError } from "zod";
 import type { CallToolResult } from "@modelcontextprotocol/sdk/types.js";
-import { KasaMCPError, KasaMCPErrorType } from "./errors.js";
+import {
+  KasaMCPError,
+  KasaMCPErrorType,
+  type KasaMCPErrorDetails,
+} from "./errors.js";
 
-/**
- * Maps an Error object to a KasaMCPErrorType.
- * This provides a bridge between generic errors (including from dependencies)
- * and the standardized error codes for this application.
- */
 function classifyError(error: Error): KasaMCPErrorType {
   if (error instanceof KasaMCPError) {
     return error.code;
   }
-  const lowerCaseMessage = error.message.toLowerCase();
-  // Fallback for generic errors from dependencies
+
+  if (error instanceof ZodError) {
+    return KasaMCPErrorType.InvalidArguments;
+  }
+
+  // Check the .code property that Node.js sets on ErrnoException — the tplink
+  // library sometimes wraps errors so the code doesn't appear in the message.
+  const errCode = (error as NodeJS.ErrnoException).code;
+
+  if (errCode === "ETIMEDOUT") return KasaMCPErrorType.ConnectionTimeout;
+  if (errCode === "EHOSTUNREACH" || errCode === "ENETUNREACH") return KasaMCPErrorType.NetworkError;
+  if (errCode === "ECONNREFUSED" || errCode === "EADDRNOTAVAIL") return KasaMCPErrorType.ConnectionRefused;
+  if (errCode === "ENOENT") return KasaMCPErrorType.DeviceNotFound;
+
+  // Classify by normalized message so mixed-case messages from dependency
+  // wrapping don't fall through to UnknownError.
+  const msg = error.message.toLowerCase();
+
   if (
-    lowerCaseMessage.includes("timeout") ||
-    lowerCaseMessage.includes("timed out") ||
-    error.message.includes("ETIMEDOUT")
+    msg.includes("timeout") ||
+    msg.includes("timed out") ||
+    msg.includes("etimedout")
   ) {
     return KasaMCPErrorType.ConnectionTimeout;
   }
-  if (
-    error.message.includes("EHOSTUNREACH") ||
-    error.message.includes("ENETUNREACH")
-  ) {
+
+  if (msg.includes("ehostunreach") || msg.includes("enetunreach")) {
     return KasaMCPErrorType.NetworkError;
   }
-  if (error.message.includes("ENOENT")) {
+
+  if (msg.includes("econnrefused") || msg.includes("eaddrnotavail")) {
+    return KasaMCPErrorType.ConnectionRefused;
+  }
+
+  if (msg.includes("enoent")) {
     return KasaMCPErrorType.DeviceNotFound;
   }
+
   return KasaMCPErrorType.UnknownError;
 }
 
-/**
- * Provides a user-friendly suggestion based on the error type.
- */
 export function getErrorSuggestion(code: KasaMCPErrorType): string {
   switch (code) {
     case KasaMCPErrorType.ConnectionTimeout:
     case KasaMCPErrorType.NetworkError:
       return "Check that the device is powered on and connected to the same network as this server.";
+    case KasaMCPErrorType.ConnectionRefused:
+      return "The device is reachable but refused the connection. It may be busy or in an error state. Try power-cycling the device.";
     case KasaMCPErrorType.DeviceNotFound:
       return "Device appears offline or unreachable. You may need to run `discover_devices` again.";
     case KasaMCPErrorType.UnsupportedOperation:
@@ -51,46 +70,54 @@ export function getErrorSuggestion(code: KasaMCPErrorType): string {
       return "The server is shutting down or has been restarted. Please try the request again.";
     case KasaMCPErrorType.InvalidArguments:
       return "The arguments provided to the tool were invalid. Please check the tool's documentation for required parameters.";
+    case KasaMCPErrorType.ConfigInvalid:
+      return "The server configuration is invalid. Check environment variables and restart.";
     default:
       return "An unknown error occurred. Check the server logs for more details.";
   }
 }
 
-/**
- * Create a structured error response for tool execution.
- */
+function extractDetails(error: Error): KasaMCPErrorDetails | undefined {
+  if (error instanceof KasaMCPError && error.details) {
+    return error.details;
+  }
+
+  if (error instanceof ZodError) {
+    const field = error.issues[0]?.path.join(".");
+    return field ? { field } : undefined;
+  }
+
+  return undefined;
+}
+
 export function createErrorResponse(
   toolName: string,
-  error: unknown,
+  error: unknown
 ): CallToolResult {
   const errorObj = error instanceof Error ? error : new Error(String(error));
   const errorCode = classifyError(errorObj);
-  const errorMessage = errorObj.message;
+  const details = extractDetails(errorObj);
+
+  const payload: Record<string, unknown> = {
+    error: true,
+    tool: toolName,
+    code: errorCode,
+    message: errorObj.message,
+    suggestion: getErrorSuggestion(errorCode),
+  };
+  if (details) payload.details = details;
 
   return {
     content: [
       {
         type: "text",
-        text: JSON.stringify(
-          {
-            error: true,
-            tool: toolName,
-            code: errorCode,
-            message: errorMessage,
-            suggestion: getErrorSuggestion(errorCode),
-          },
-          null,
-          2,
-        ),
+        text: JSON.stringify(payload, null, 2),
       },
     ],
     isError: true,
   };
 }
 
-/**
- * Create a success response for tool execution
- */
 export function createSuccessResponse(data: unknown): CallToolResult {
   return {
     content: [
@@ -101,4 +128,3 @@ export function createSuccessResponse(data: unknown): CallToolResult {
     ],
   };
 }
-
